@@ -39,6 +39,7 @@ class supplyInterestRates {
     constructor(collateralAsset, borrowedAsset) {
         this.collateralAsset = collateralAsset;
         this.borrowedAsset = borrowedAsset;
+        this.firstCommonDate;
     }
 
     formatApiRequest(data) {
@@ -91,6 +92,41 @@ class supplyInterestRates {
         response = this.formatApiRequest(response.data.data);
         
         return response;
+    }
+
+    syncProviderData(allProviderData) {
+        let syncProviderData = {};
+        for (let provider in allProviderData) {
+            let providerData = allProviderData[provider];
+            let splitOn = 0;
+            for (let i=0; i<providerData.length; i++) {
+                let date = ir.timestampToDate(providerData[i]['timestamp']);
+                if ( ir.isSameDay(date, ir.firstCommonDate) ) {
+                    splitOn = i;
+                    break;
+                }
+            }
+            syncProviderData[provider] = providerData.slice(splitOn);
+        }
+        return syncProviderData;
+    }
+
+    async getAllProviderData() {
+        let firstDateArray = [];
+        let allProviderData = {};
+        for (let i=0; i<borrowingVault.lendingProviders.length; i++) {
+            let provider = borrowingVault.lendingProviders[i];
+            let providerData = await ir.getHistoricData(pools[ir.borrowedAsset][provider]);
+    
+            allProviderData[provider] = providerData;
+    
+            let firstDate = ir.timestampToDate(providerData[0]['timestamp']);
+            firstDateArray.push(firstDate);
+        }
+        
+        this.firstCommonDate = new Date(Math.max.apply(null, firstDateArray));
+        allProviderData = this.syncProviderData(allProviderData);
+        return allProviderData
     }
 }
 
@@ -197,53 +233,22 @@ let lendingProvider1 = borrowingVault.lendingProviders[0];
 let lendingProvider2 = borrowingVault.lendingProviders[1];
 
 (async function(){
-
-    let firstDateArray = [];
-    let providerDataArray = {};
-    for (i=0; i<borrowingVault.lendingProviders.length; i++) {
-        let provider = borrowingVault.lendingProviders[i];
-        let providerData = await ir.getHistoricData(pools[ir.borrowedAsset][provider]);
-
-        providerDataArray[provider] = providerData;
-
-        let firstDate = ir.timestampToDate(providerData[0]['timestamp']);
-        firstDateArray.push(firstDate);
-    }
-    
-    // Get earliest date where each provider has apy data:
-    let firstCommonDate = new Date(Math.max.apply(null, firstDateArray));
-    console.log('First common date all provider have data: ', firstCommonDate);
-
-    formattedDataArray = {};
-    for (provider in providerDataArray) {
-        let providerData = providerDataArray[provider];
-        let splitOn = 0;
-        for (i=0; i<providerData.length; i++) {
-            let date = ir.timestampToDate(providerData[i]['timestamp']);
-            if ( ir.isSameDay(date, firstCommonDate) ) {
-                splitOn = i;
-                break;
-            }
-        }
-        formattedDataArray[provider] = providerData.slice(splitOn);
-    }
-
-    providerDataArray = formattedDataArray;
+    allProviderData = await ir.getAllProviderData();
 
     let borrowAPYs = {};
     
-    for (let i = 0; i < providerDataArray[lendingProvider1].length; i++) {
-        if ( ir.isSameDay(providerDataArray[lendingProvider1][i].timestamp, providerDataArray[lendingProvider2][i].timestamp) ) {
-            let date = ir.timestampToDate(providerDataArray[lendingProvider1][i].timestamp);
+    for (let i = 0; i < allProviderData[lendingProvider1].length; i++) {
+        if ( ir.isSameDay(allProviderData[lendingProvider1][i].timestamp, allProviderData[lendingProvider2][i].timestamp) ) {
+            let date = ir.timestampToDate(allProviderData[lendingProvider1][i].timestamp);
             borrowAPYs[date] = {};
 
             borrowAPYs[date][lendingProvider1] = {};
-            borrowAPYs[date][lendingProvider1]['apyBaseBorrow'] = providerDataArray[lendingProvider1][i].apyBaseBorrow;
-            borrowAPYs[date][lendingProvider1]['totalBorrowUsd'] = providerDataArray[lendingProvider1][i].totalBorrowUsd;
+            borrowAPYs[date][lendingProvider1]['apyBaseBorrow'] = allProviderData[lendingProvider1][i].apyBaseBorrow;
+            borrowAPYs[date][lendingProvider1]['totalBorrowUsd'] = allProviderData[lendingProvider1][i].totalBorrowUsd;
             
             borrowAPYs[date][lendingProvider2] = {};
-            borrowAPYs[date][lendingProvider2]['apyBaseBorrow'] = providerDataArray[lendingProvider2][i].apyBaseBorrow;
-            borrowAPYs[date][lendingProvider2]['totalBorrowUsd'] = providerDataArray[lendingProvider2][i].totalBorrowUsd;
+            borrowAPYs[date][lendingProvider2]['apyBaseBorrow'] = allProviderData[lendingProvider2][i].apyBaseBorrow;
+            borrowAPYs[date][lendingProvider2]['totalBorrowUsd'] = allProviderData[lendingProvider2][i].totalBorrowUsd;
         }
     }
     
