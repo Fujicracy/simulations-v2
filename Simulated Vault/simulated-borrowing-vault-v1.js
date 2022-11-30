@@ -18,28 +18,29 @@ const axios = require('axios');
 
 let collateralAsset = 'ETH';
 let borrowedAsset = 'USDC';
+let lendingProviders = ['aavev2', 'compound'];
 
 let chains = ['Mainnet', 'Polygon', 'Arbitrum', 'Optimism'];
 // let allowedLendingProviders = ['AaveV2', 'CompoundV2'];
 
-// let allowedLendingProviders = ['AaveV2', 'AaveV3', 'CompoundV2', 'CompoundV3', 
-//                             'Euler', 'Notional', 'Morpho', 'Sturdy Finance', 
+// let allowedLendingProviders = ['aavev2', 'AaveV3', 'Compound-v2', 'Compound-v3', 
+//                             'euler', 'Notional', 'Morpho', 'Sturdy Finance', 
 //                             'Radiant', '0vix', 'Hundred', 'Iron Bank', 
 //                             'dForce', 'WePiggy', 'Midas', 'Wing'];
 
-let pools = {
-    'USDC': {
-        'aavev2': 'a349fea4-d780-4e16-973e-70ca9b606db2',
-        'compound': 'cefa9bb8-c230-459a-a855-3b94e96acd8c',
-        'euler': '61b7623c-9ac2-4a73-a748-8db0b1c8c5bc',
-    }
-};
-
 class supplyInterestRates {
-    constructor(collateralAsset, borrowedAsset) {
+    constructor(collateralAsset, borrowedAsset, lendingProviders) {
         this.collateralAsset = collateralAsset;
         this.borrowedAsset = borrowedAsset;
+        this.lendingProviders = lendingProviders;
         this.firstCommonDate;
+        this.pools = {
+                'USDC': {
+                    'aavev2': 'a349fea4-d780-4e16-973e-70ca9b606db2',
+                    'compound': 'cefa9bb8-c230-459a-a855-3b94e96acd8c',
+                    'euler': '61b7623c-9ac2-4a73-a748-8db0b1c8c5bc',
+                }
+        }
     }
 
     formatApiRequest(data) {
@@ -95,13 +96,14 @@ class supplyInterestRates {
     }
 
     syncProviderData(allProviderData) {
+        // Let all provider data start on the same date
         let syncProviderData = {};
         for (let provider in allProviderData) {
             let providerData = allProviderData[provider];
             let splitOn = 0;
             for (let i=0; i<providerData.length; i++) {
-                let date = ir.timestampToDate(providerData[i]['timestamp']);
-                if ( ir.isSameDay(date, ir.firstCommonDate) ) {
+                let date = this.timestampToDate(providerData[i]['timestamp']);
+                if ( this.isSameDay(date, this.firstCommonDate) ) {
                     splitOn = i;
                     break;
                 }
@@ -114,28 +116,67 @@ class supplyInterestRates {
     async getAllProviderData() {
         let firstDateArray = [];
         let allProviderData = {};
-        for (let i=0; i<borrowingVault.lendingProviders.length; i++) {
-            let provider = borrowingVault.lendingProviders[i];
-            let providerData = await ir.getHistoricData(pools[ir.borrowedAsset][provider]);
+        for (let i=0; i<this.lendingProviders.length; i++) {
+            let provider = this.lendingProviders[i];
+            let providerData = await this.getHistoricData(this.pools[this.borrowedAsset][provider]);
     
             allProviderData[provider] = providerData;
     
-            let firstDate = ir.timestampToDate(providerData[0]['timestamp']);
+            let firstDate = this.timestampToDate(providerData[0]['timestamp']);
             firstDateArray.push(firstDate);
         }
         
         this.firstCommonDate = new Date(Math.max.apply(null, firstDateArray));
         allProviderData = this.syncProviderData(allProviderData);
+        
         return allProviderData
+    }
+
+    async formatProviderData(allProviderData) {
+        let formattedData = {};
+    
+        for (let i = 0; i < allProviderData[this.lendingProviders[0]].length; i++) {
+            let date = ir.timestampToDate(allProviderData[this.lendingProviders[0]][i].timestamp);
+            formattedData[date] = {};
+
+            for (let j = 0; j < this.lendingProviders.length; j++) {
+                let lendingProvider = this.lendingProviders[j];
+                
+                formattedData[date][lendingProvider] = {};
+
+                formattedData[date][lendingProvider]['apyBaseBorrow'] = allProviderData[lendingProvider][i].apyBaseBorrow;
+                formattedData[date][lendingProvider]['totalBorrowUsd'] = allProviderData[lendingProvider][i].totalBorrowUsd;
+            }
+        }
+        
+        return formattedData;
     }
 }
 
-class rebalanceStrategy {
+class simulaterebalancing {
     constructor(borroowingVault, supplyInterestRates) {
         this.borroowingVault = borroowingVault;
         this.supplyInterestRates = supplyInterestRates;
-        this.lastRebalnceDate = new Date();
-        this.rebalanceFrequency = 24; // in hours
+    }
+
+    logResults(date,
+                apys,
+                maxSlippage, 
+                totalBorrowUsd, 
+                maxTransferAmount, 
+                amountToTransfer,
+                distr) {
+        console.log();
+        console.log('---------------------------------');
+        console.log('date:', date);
+        console.log('apys:', apys);
+        console.log('maxSlippage: ', maxSlippage);
+        console.log('totalBorrowUsd1: ', totalBorrowUsd);
+        console.log('maxTransferAmount: ', maxTransferAmount);
+        console.log('Amount to transfer: ', amountToTransfer);
+        console.log('Distribution: ', distr);
+        console.log('---------------------------------');
+        console.log();
     }
 
     // method to sort interest rates 
@@ -145,12 +186,12 @@ class rebalanceStrategy {
 }
 
 class simulatedVault {
-    constructor(collateralAsset, collateralAmount, debtAsset, debtAmount) {
+    constructor(collateralAsset, collateralAmount, debtAsset, debtAmount, lendingProviders) {
         this.collateralAsset = collateralAsset;
         this.collateralAmount = collateralAmount;
         this.debtAsset = debtAsset;
         this.debtAmount = debtAmount;
-        this.lendingProviders = ['aavev2', 'compound'];
+        this.lendingProviders = lendingProviders;
         this.apyHistory = {};
         this.providerDistribution = {};
     }
@@ -159,6 +200,12 @@ class simulatedVault {
     // get userBorrowrate() {
     //     return this.calcAvgBorrowRate();
     // }
+
+    initProviderDistribution() {
+        for (let i=0; i<this.lendingProviders.length; i++) {
+            this.providerDistribution[this.lendingProviders[i]] = 0;
+        }
+    }
 
     calcAvgBorrowRate(data) {
         let avgBorrowRate = 0;
@@ -215,6 +262,8 @@ class simulatedVault {
     }
     
     initialize() {
+        // initialize when vault is too big to to be distributed because of slippage.
+        // currently not needed with 4e5 debtAmount
         for (let i = 0; i < this.lendingProviders.length; i++) {
             let provider = this.lendingProviders[i];
             
@@ -222,45 +271,26 @@ class simulatedVault {
     }
 }
 
-let ir = new supplyInterestRates(collateralAsset, borrowedAsset);
+let ir = new supplyInterestRates(collateralAsset, borrowedAsset, lendingProviders);
 
 let borrowingVault = new simulatedVault(collateralAsset = collateralAsset,
                                         collateralAmount = 1000,
                                         debtAsset = borrowedAsset,
-                                        debtAmount = 4e5);
+                                        debtAmount = 4e5,
+                                        lendingProviders);
+
+let rebalance = new simulaterebalancing(borrowingVault, ir);
 
 let lendingProvider1 = borrowingVault.lendingProviders[0];
 let lendingProvider2 = borrowingVault.lendingProviders[1];
 
-(async function(){
-    allProviderData = await ir.getAllProviderData();
+async function simRebalance() {
+    let allProviderData = await ir.getAllProviderData();
+    let borrowAPYs = await ir.formatProviderData(allProviderData);
 
-    let borrowAPYs = {};
-    
-    for (let i = 0; i < allProviderData[lendingProvider1].length; i++) {
-        if ( ir.isSameDay(allProviderData[lendingProvider1][i].timestamp, allProviderData[lendingProvider2][i].timestamp) ) {
-            let date = ir.timestampToDate(allProviderData[lendingProvider1][i].timestamp);
-            borrowAPYs[date] = {};
-
-            borrowAPYs[date][lendingProvider1] = {};
-            borrowAPYs[date][lendingProvider1]['apyBaseBorrow'] = allProviderData[lendingProvider1][i].apyBaseBorrow;
-            borrowAPYs[date][lendingProvider1]['totalBorrowUsd'] = allProviderData[lendingProvider1][i].totalBorrowUsd;
-            
-            borrowAPYs[date][lendingProvider2] = {};
-            borrowAPYs[date][lendingProvider2]['apyBaseBorrow'] = allProviderData[lendingProvider2][i].apyBaseBorrow;
-            borrowAPYs[date][lendingProvider2]['totalBorrowUsd'] = allProviderData[lendingProvider2][i].totalBorrowUsd;
-        }
-    }
-    
-    borrowingVault.providerDistribution[lendingProvider1] = 0;
-    borrowingVault.providerDistribution[lendingProvider2] = 0;
+    borrowingVault.initProviderDistribution();
 
     for (let date in borrowAPYs) {
-        console.log();
-        console.log('********************************************************');
-        console.log(date);
-        console.log(borrowAPYs[date]);
-
         let apy1 = borrowAPYs[date][lendingProvider1]['apyBaseBorrow'];
         let apy2 = borrowAPYs[date][lendingProvider2]['apyBaseBorrow'];
 
@@ -271,25 +301,9 @@ let lendingProvider2 = borrowingVault.lendingProviders[1];
         
         let amountToTransfer = borrowingVault.debtAmount;
 
-        function logResults(maxSlippage, 
-                            totalBorrowUsd, 
-                            maxTransferAmount, 
-                            amountToTransfer,
-                            distr) {
-            console.log();
-            console.log('---------------------------------');
-            console.log('maxSlippage: ', maxSlippage);
-            console.log('totalBorrowUsd1: ', totalBorrowUsd);
-            console.log('maxTransferAmount: ', maxTransferAmount);
-            console.log('Amount to transfer: ', amountToTransfer);
-            console.log('Distribution: ', distr);
-            console.log('---------------------------------');
-            console.log();
-        }
-
         if ( apy1 < apy2 - 0.5 ) {
             let maxSlippage = apy2 - apy1 - 0.5;
-            let maxTransferAmount = borrowingVault.maxTransferAmount(tvlProvider = totalBorrowUsd1, maxSlippage = maxSlippage);
+            let maxTransferAmount = borrowingVault.maxTransferAmount(totalBorrowUsd1, maxSlippage);
 
             if (borrowingVault.providerDistrTotal() != 0 && borrowingVault.providerDistribution[lendingProvider2] != 0) {
                 amountToTransfer *= borrowingVault.providerDistribution[lendingProvider2];
@@ -305,12 +319,12 @@ let lendingProvider2 = borrowingVault.lendingProviders[1];
             // if there is still left to transfer after maxTransferAmount and 
             // there is debt in the vault wihtout provider, then transfer the rest
 
-            logResults(maxSlippage, totalBorrowUsd1, maxTransferAmount, amountToTransfer, borrowingVault.providerDistribution)
+            rebalance.logResults(date, borrowAPYs[date], maxSlippage, totalBorrowUsd1, maxTransferAmount, amountToTransfer, borrowingVault.providerDistribution)
 
         } else if ( apy2 < apy1 - 0.5 ) {
             let maxSlippage = apy1 - apy2 - 0.5;
 
-            let maxTransferAmount = borrowingVault.maxTransferAmount(tvlProvider = totalBorrowUsd2, maxSlippage = maxSlippage);
+            let maxTransferAmount = borrowingVault.maxTransferAmount(totalBorrowUsd2, maxSlippage);
             
             if (borrowingVault.providerDistrTotal() != 0 & borrowingVault.providerDistribution[lendingProvider1] != 0) {
                 amountToTransfer *= borrowingVault.providerDistribution[lendingProvider1];
@@ -321,19 +335,17 @@ let lendingProvider2 = borrowingVault.lendingProviders[1];
             }
             borrowingVault.transferDebt(lendingProvider1, lendingProvider2, amountToTransfer / borrowingVault.debtAmount);
             
-            logResults(maxSlippage, totalBorrowUsd2, maxTransferAmount, amountToTransfer, borrowingVault.providerDistribution)
+            rebalance.logResults(date, borrowAPYs[date], maxSlippage, totalBorrowUsd2, maxTransferAmount, amountToTransfer, borrowingVault.providerDistribution)
         }
         
         borrowingVault.apyHistory[date] = {
             'activeProvider': borrowingVault.providerDistribution,
-            'activeApy': {
-                'aavev2': borrowAPYs[date][lendingProvider1]['apyBaseBorrow'],
-                'compound': borrowAPYs[date][lendingProvider2]['apyBaseBorrow']
-            }
+            'activeApy': {}
         };
-        // for (i in borrowingVault.lendingProviders) {
-        //     borrowingVault.apyHistory[date]['activeApy'][borrowingVault.lendingProviders[i]] = borrowAPYs[date][borrowingVault.lendingProviders[i]]['apyBaseBorrow'];
-        // }
+        for (let i = 0; i < borrowingVault.lendingProviders.length; i++) {
+            let provider = borrowingVault.lendingProviders[i];
+            borrowingVault.apyHistory[date]['activeApy'][provider] = borrowAPYs[date][provider]['apyBaseBorrow'];
+        }
     }
 
     /* 
@@ -345,8 +357,8 @@ let lendingProvider2 = borrowingVault.lendingProviders[1];
     // sum up borrowingVault.apyHistory rates
     let accumulatedInterest = 0;
     let totalDayCount = 0;
-    for (date in borrowingVault.apyHistory) {
-        currentDate = new Date(date);
+    for (let date in borrowingVault.apyHistory) {
+        let currentDate = new Date(date);
         if (currentDate <= endDate) {
             totalDayCount += 1;
             accumulatedInterest += borrowingVault.calcAvgBorrowRate(borrowingVault.apyHistory[date]) / 100;
@@ -357,7 +369,7 @@ let lendingProvider2 = borrowingVault.lendingProviders[1];
 
     console.log('The borrowing vault rebalanced', borrowingVault.debtAmount, 
                 borrowingVault.debtAsset, 'for', totalDayCount, 'days');
-    console.log('Total interest paid ', totalInterestPaid, debtAsset);
+    console.log('Total interest paid ', totalInterestPaid, borrowingVault.debtAsset);
 
     /*
     - how much total interest paid with rebalancing
@@ -365,4 +377,6 @@ let lendingProvider2 = borrowingVault.lendingProviders[1];
     - how much total interest paid with compound
     */
 
-})();
+}
+
+simRebalance();
