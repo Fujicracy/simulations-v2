@@ -18,7 +18,7 @@ The requirements to run the Benchmark and Simulated vault scripts
 
 Performs a calculation of total interest a user pays for using the Aave V2 as lending provider to borrow "borrowedAmount" from "startDate" to "endDate".
 
-You can vary these input variables to your preference and run:
+You can vary these input variables to your preference and run: \
     ``node aave-v2-api.js``
 
 It uses the Aave-V2 Data API as data source directly, this makes it a useful benchmark. We can compare results when using other aggregate data sources.
@@ -33,7 +33,7 @@ To test the accuracy of the above interest calculator for Aave V2, we compare th
 
 Prototype rebalance strategy to lower total interest paid on borrow position ("debtAmount"): switch to the lowest lending provider with the lowest APY. It only consider two providers, "lendingProvider1" and "lendingProvider2". Ignores slippage. Changes provider if APY is at least 0.5% cheaper.
 
-Starts when API has data for both providers, ends at run date. To test, run:
+Starts when API has data for both providers, ends at run date. To test, run: \
     ``node simulated-borrowing-vault-v0.js``
 
 - simulated-borrowing-vault-v1.js
@@ -45,8 +45,15 @@ Default settings:
     lendingProviders = ['aavev2', 'compound'];
     Vault that manages: debtAmount = 400000
 
-Test by running:
+Test by running: \
     ``node simulated-borrowing-vault-v0.js``
+
+### Simulation App
+
+This is a React app built in Replit. 
+
+You can run the react app yourself or go to:
+https://simulate-loan.ben132333.repl.co/
 
 ## Data Sources
 
