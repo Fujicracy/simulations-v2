@@ -46,7 +46,7 @@ Default settings:
     Vault that manages: debtAmount = 400000
 
 Test by running: \
-    ``node simulated-borrowing-vault-v0.js``
+    ``node simulated-borrowing-vault-v1.js``
 
 ### Simulation App
 
