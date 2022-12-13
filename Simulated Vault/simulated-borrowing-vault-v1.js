@@ -281,9 +281,6 @@ let borrowingVault = new simulatedVault(collateralAsset = collateralAsset,
 
 let rebalance = new simulaterebalancing(borrowingVault, ir);
 
-let lendingProvider1 = borrowingVault.lendingProviders[0];
-let lendingProvider2 = borrowingVault.lendingProviders[1];
-
 async function simRebalance() {
     let allProviderData = await ir.getAllProviderData();
     let borrowAPYs = await ir.formatProviderData(allProviderData);
@@ -291,52 +288,46 @@ async function simRebalance() {
     borrowingVault.initProviderDistribution();
 
     for (let date in borrowAPYs) {
-        let apy1 = borrowAPYs[date][lendingProvider1]['apyBaseBorrow'];
-        let apy2 = borrowAPYs[date][lendingProvider2]['apyBaseBorrow'];
+        let min = {};
+        for (let provider in borrowAPYs[date]) {
+            if (min['apyBaseBorrow'] == undefined || borrowAPYs[date][provider]['apyBaseBorrow'] < min['apyBaseBorrow']) {
+              min['apyBaseBorrow'] = borrowAPYs[date][provider]['apyBaseBorrow'];
+              min['totalBorrowUsd'] = borrowAPYs[date][provider]['totalBorrowUsd'];
+              min['provider'] = provider;
+            }
+        }
 
         let totalBorrowUsd1 = borrowAPYs[date][lendingProvider1]['totalBorrowUsd'];
         let totalBorrowUsd2 = borrowAPYs[date][lendingProvider2]['totalBorrowUsd'];
 
-        // TODO get price to convert the debt asset to USD - okay now becasue we use USDC
-        
-        let amountToTransfer = borrowingVault.debtAmount;
-
-        if ( apy1 < apy2 - 0.5 ) {
-            let maxSlippage = apy2 - apy1 - 0.5;
-            let maxTransferAmount = borrowingVault.maxTransferAmount(totalBorrowUsd1, maxSlippage);
-
-            if (borrowingVault.providerDistrTotal() != 0 && borrowingVault.providerDistribution[lendingProvider2] != 0) {
-                amountToTransfer *= borrowingVault.providerDistribution[lendingProvider2];
-            }
-
-            if (amountToTransfer > maxTransferAmount) {
-                amountToTransfer = maxTransferAmount;
-            }
-            borrowingVault.transferDebt(lendingProvider2, lendingProvider1, amountToTransfer / borrowingVault.debtAmount);
-
-            // add amountToTransfer to totalBorrowUsd
-
-            // if there is still left to transfer after maxTransferAmount and 
-            // there is debt in the vault wihtout provider, then transfer the rest
-
-            rebalance.logResults(date, borrowAPYs[date], maxSlippage, totalBorrowUsd1, maxTransferAmount, amountToTransfer, borrowingVault.providerDistribution)
-
-        } else if ( apy2 < apy1 - 0.5 ) {
-            let maxSlippage = apy1 - apy2 - 0.5;
-
-            let maxTransferAmount = borrowingVault.maxTransferAmount(totalBorrowUsd2, maxSlippage);
-            
-            if (borrowingVault.providerDistrTotal() != 0 & borrowingVault.providerDistribution[lendingProvider1] != 0) {
-                amountToTransfer *= borrowingVault.providerDistribution[lendingProvider1];
-            }
-
-            if (amountToTransfer > maxTransferAmount) {
-                amountToTransfer = maxTransferAmount;
-            }
-            borrowingVault.transferDebt(lendingProvider1, lendingProvider2, amountToTransfer / borrowingVault.debtAmount);
-            
-            rebalance.logResults(date, borrowAPYs[date], maxSlippage, totalBorrowUsd2, maxTransferAmount, amountToTransfer, borrowingVault.providerDistribution)
+        if (borrowingVault.providerDistrTotal() == 0) {
+            borrowingVault.providerDistribution[min['provider']] = 1;
+            // TODO: track slippage
         }
+
+        let amountToTransfer = borrowingVault.debtAmount;
+        for (let provider in borrowAPYs[date]) {
+            if ( min['apyBaseBorrow'] < borrowAPYs[date][provider]['apyBaseBorrow'] - 0.5 ) {
+                let maxSlippage = borrowAPYs[date][provider]['apyBaseBorrow'] - min['apyBaseBorrow'] - 0.5;
+                let maxTransferAmount = borrowingVault.maxTransferAmount(
+                    min['totalBorrowUsd'],
+                    maxSlippage);
+                
+                if (borrowingVault.providerDistrTotal() != 0 && borrowingVault.providerDistribution[provider] != 0) {
+                    amountToTransfer *= borrowingVault.providerDistribution[provider];
+                }
+
+                if (amountToTransfer > maxTransferAmount) {
+                    amountToTransfer = maxTransferAmount;
+                }
+
+                borrowingVault.transferDebt(provider, min['provider'], amountToTransfer / borrowingVault.debtAmount);
+
+                rebalance.logResults(date, borrowAPYs[date], maxSlippage, min['totalBorrowUsd'], maxTransferAmount, amountToTransfer, borrowingVault.providerDistribution);
+            }
+        }
+
+        // TODO get price to convert the debt asset to USD - okay now becasue we use USDC
         
         borrowingVault.apyHistory[date] = {
             'activeProvider': borrowingVault.providerDistribution,
