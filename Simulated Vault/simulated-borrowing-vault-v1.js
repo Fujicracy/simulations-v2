@@ -297,9 +297,6 @@ async function simRebalance() {
             }
         }
 
-        let totalBorrowUsd1 = borrowAPYs[date][lendingProvider1]['totalBorrowUsd'];
-        let totalBorrowUsd2 = borrowAPYs[date][lendingProvider2]['totalBorrowUsd'];
-
         if (borrowingVault.providerDistrTotal() == 0) {
             borrowingVault.providerDistribution[min['provider']] = 1;
             // TODO: track slippage
