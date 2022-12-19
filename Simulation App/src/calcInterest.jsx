@@ -111,8 +111,13 @@ export class supplyInterestRates {
 
         formattedData[date][lendingProvider] = {};
 
-        formattedData[date][lendingProvider]['apyBaseBorrow'] = allProviderData[lendingProvider][i].apyBaseBorrow;
-        formattedData[date][lendingProvider]['totalBorrowUsd'] = allProviderData[lendingProvider][i].totalBorrowUsd;
+        formattedData[date][lendingProvider]['apyBaseBorrow'] =
+          allProviderData[lendingProvider][i].apyBaseBorrow;
+        formattedData[date][lendingProvider]['apySlippage'] = 0;
+
+        formattedData[date][lendingProvider]['totalBorrowUsd'] =
+          allProviderData[lendingProvider][i].totalBorrowUsd;
+        formattedData[date][lendingProvider]['simVaultBorrow'] = 0;
       }
     }
 
@@ -120,37 +125,17 @@ export class supplyInterestRates {
   }
 }
 
-export class simulaterebalancing {
-  constructor(borroowingVault, supplyInterestRates) {
-    this.borroowingVault = borroowingVault;
-    this.supplyInterestRates = supplyInterestRates;
-  }
+// export class simulaterebalancing {
+//   constructor(borroowingVault, supplyInterestRates) {
+//     this.borroowingVault = borroowingVault;
+//     this.supplyInterestRates = supplyInterestRates;
+//   }
 
-  logResults(date,
-    apys,
-    maxSlippage,
-    totalBorrowUsd,
-    maxTransferAmount,
-    amountToTransfer,
-    distr) {
-    console.log();
-    console.log('---------------------------------');
-    console.log('date:', date);
-    console.log('apys:', apys);
-    console.log('maxSlippage: ', maxSlippage);
-    console.log('totalBorrowUsd1: ', totalBorrowUsd);
-    console.log('maxTransferAmount: ', maxTransferAmount);
-    console.log('Amount to transfer: ', amountToTransfer);
-    console.log('Distribution: ', distr);
-    console.log('---------------------------------');
-    console.log();
-  }
+// method to sort interest rates 
 
-  // method to sort interest rates 
-
-  // method to decide rebalancing strategy: 0.5%
-
-}
+// method to decide rebalancing strategy: 0.5%
+// 
+// }
 
 export class simulatedVault {
   constructor(collateralAsset, collateralAmount, debtAsset, debtAmount, lendingProviders) {
@@ -159,14 +144,9 @@ export class simulatedVault {
     this.debtAsset = debtAsset;
     this.debtAmount = debtAmount;
     this.lendingProviders = lendingProviders;
-    this.apyHistory = {};
     this.providerDistribution = {};
+    this.linearModelCoeff = 0.35;
   }
-
-  // // The borrow rate a user gets from the vault is the weighted average of the borrow rates of the providers
-  // get userBorrowrate() {
-  //     return this.calcAvgBorrowRate();
-  // }
 
   initProviderDistribution() {
     for (let i = 0; i < this.lendingProviders.length; i++) {
@@ -174,29 +154,16 @@ export class simulatedVault {
     }
   }
 
-  calcAvgBorrowRate(data) {
-    let avgBorrowRate = 0;
-
-    // loop through the lending providers
-    for (let i = 0; i < this.lendingProviders.length; i++) {
-      let provider = this.lendingProviders[i];
-      avgBorrowRate += data['activeProvider'][provider] * data['activeApy'][provider];
-    }
-
-    return avgBorrowRate;
-  }
-
   // slippage model
   apySlippage(tvlProvider, transferAmount) {
-    // if transferAmount is 1% fo tvlProvider, then slippage is 0.35%
-    let slippage = 0.35 * transferAmount / (tvlProvider);
+    // if transferAmount is 1% of tvlProvider, then slippage is 0.35%
+    let slippage = this.linearModelCoeff * transferAmount / tvlProvider;
     return slippage;
   }
 
-  // function with default value
-
-  maxTransferAmount(tvlProvider, maxSlippage = 0.35) {
-    let maxTransferAmount = 2 * maxSlippage * tvlProvider;
+  maxTransferAmount(tvlProvider, maxSlippage) {
+    // Inversion of apySlippage equation
+    let maxTransferAmount = maxSlippage * tvlProvider / this.linearModelCoeff;
     return maxTransferAmount;
   }
 
@@ -211,14 +178,13 @@ export class simulatedVault {
 
   // transfer from one provider to another
   transferDebt(fromProvider, toProvider, transferAmount) {
-    // transferAmount: 0 to 1
-
-    if (this.providerDistrTotal() == 1) {
-      if (this.providerDistribution[fromProvider] < transferAmount) {
-        transferAmount = this.providerDistribution[fromProvider];
-      }
-      this.providerDistribution[fromProvider] -= transferAmount;
+    // transferAmount: percentage expressed from 0 to 1. Tansfers providerDistribution.
+    // if (this.providerDistrTotal() == 1) {
+    if (this.providerDistribution[fromProvider] < transferAmount) {
+      transferAmount = this.providerDistribution[fromProvider];
     }
+    this.providerDistribution[fromProvider] -= transferAmount;
+    // }
 
     if (this.providerDistribution[toProvider] + transferAmount > 1) {
       transferAmount = 1 - this.providerDistribution[toProvider];
@@ -236,4 +202,135 @@ export class simulatedVault {
 
     }
   }
+}
+
+
+const apyHistory = {};
+
+function getMinProviderApy(oneDayProviderApys) {
+  let minProvider = {};
+
+  for (let provider in oneDayProviderApys) {
+    if (minProvider['apyBaseBorrow'] == undefined || oneDayProviderApys[provider]['apyBaseBorrow'] < minProvider['apyBaseBorrow']) {
+      minProvider['apyBaseBorrow'] = oneDayProviderApys[provider]['apyBaseBorrow'];
+      minProvider['totalBorrowUsd'] = oneDayProviderApys[provider]['totalBorrowUsd'];
+      minProvider['provider'] = provider;
+    }
+  }
+
+  return minProvider;
+}
+
+function calcAvgBorrowRate(data) {
+  data = JSON.parse(data);
+  let avgBorrowRate = 0;
+
+  let lendingProviders = Object.keys(data['activeApy']);
+
+  for (let i = 0; i < lendingProviders.length; i++) {
+    let provider = lendingProviders[i];
+    // add apySlippage to activeApy
+    avgBorrowRate += data['activeProvider'][provider] * (data['activeApy'][provider] + data['apySlippage'][provider]);
+  }
+
+  return avgBorrowRate;
+}
+
+function totalInterestPaid(historicRates, debtAmount, startDate, endDate) {
+  let accumulatedInterest = 0;
+  let totalDayCount = 0;
+
+  for (let date in historicRates) {
+    let currentDate = new Date(date);
+    if (startDate < currentDate && currentDate <= endDate) {
+      totalDayCount += 1;
+      accumulatedInterest += calcAvgBorrowRate(historicRates[date]) / 100;
+    }
+  }
+
+  let totalInterestPaid = debtAmount * accumulatedInterest / 365;
+
+  return {
+    "totalInterestPaid": totalInterestPaid,
+    "totalDayCount": totalDayCount
+  }
+
+}
+
+export async function simRebalance(startDateInput, endDateInput, borrowingVault, ir) {
+  const allProviderData = await ir.getAllProviderData();
+  const borrowAPYs = await ir.formatProviderData(allProviderData);
+  console.log('First common date all providers have API data:', ir.firstCommonDate);
+  console.log('All data:', borrowAPYs);
+  Object.freeze(borrowAPYs);
+
+  const startDate = new Date(startDateInput);
+  const endDate = new Date(endDateInput);
+
+  borrowingVault.initProviderDistribution();
+  for (let date in borrowAPYs) {
+    let minProvider = getMinProviderApy(borrowAPYs[date]);
+
+    // initialize provider distribution
+    if (borrowingVault.providerDistrTotal() < 1) {
+      borrowingVault.providerDistribution[minProvider['provider']] = 1;
+      // TODO: add slippage
+    }
+
+    for (let provider in borrowAPYs[date]) {
+      if (minProvider['apyBaseBorrow'] < borrowAPYs[date][provider]['apyBaseBorrow'] - 0.5) {
+        if (borrowingVault.providerDistribution[provider] == 0) {
+          continue; // There is nothing to transfer
+        }
+
+        let percentageToTransfer = borrowingVault.providerDistribution[provider];
+        let amountToTransfer = percentageToTransfer * borrowingVault.debtAmount; // does this need to be collateral amount? The debtAmount is among the users, the borrowing vault manages the collateral?
+
+        let maxSlippage = borrowAPYs[date][provider]['apyBaseBorrow'] - minProvider['apyBaseBorrow'] - 0.5;
+        let maxTransferAmount = borrowingVault.maxTransferAmount(minProvider['totalBorrowUsd'], maxSlippage);
+
+        if (amountToTransfer > maxTransferAmount) {
+          amountToTransfer = maxTransferAmount;
+          percentageToTransfer = amountToTransfer / borrowingVault.debtAmount;
+        }
+
+        // How much slippage did the transaction cause? Calculate via apySlippage and add to borrowAPYs
+        let apySlippage = borrowingVault.apySlippage(minProvider['totalBorrowUsd'], amountToTransfer);
+        borrowAPYs[date][minProvider['provider']]['apySlippage'] = apySlippage;
+        borrowAPYs[date][minProvider['provider']]['simVaultBorrow'] = amountToTransfer;
+
+        borrowAPYs[date][provider]['apySlippage'] -= apySlippage;
+        borrowAPYs[date][provider]['simVaultBorrow'] -= amountToTransfer
+
+        if (borrowAPYs[date][provider]['apySlippage'] > 0 || borrowAPYs[date][provider]['simVaultBorrow'] > 0) {
+          throw "Check slippage"
+        }
+
+        borrowingVault.transferDebt(
+          provider,
+          minProvider['provider'],
+          percentageToTransfer);
+      }
+    }
+
+    // TODO get price to convert the debt asset to USD - okay now becasue we use USDC
+
+    apyHistory[date] = {
+      'activeProvider': borrowingVault.providerDistribution,
+      'activeApy': {},
+      'apySlippage': {}
+    };
+    for (let i = 0; i < borrowingVault.lendingProviders.length; i++) {
+      let provider = borrowingVault.lendingProviders[i];
+      apyHistory[date]['activeApy'][provider] = borrowAPYs[date][provider]['apyBaseBorrow'];
+      apyHistory[date]['apySlippage'][provider] = borrowAPYs[date][provider]['apySlippage'];
+    }
+
+    apyHistory[date] = JSON.stringify(apyHistory[date]);
+  }
+
+  const result = totalInterestPaid(apyHistory, borrowingVault.debtAmount, startDate, endDate);
+
+  console.log('The borrowing vault rebalanced', borrowingVault.debtAmount,
+    borrowingVault.debtAsset, 'for', result["totalDayCount"], 'days. Total interest paid ', result["totalInterestPaid"], borrowingVault.debtAsset);
 }
