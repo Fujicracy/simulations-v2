@@ -19,11 +19,11 @@ This will return:
 ``{"totalInterestPaid":1209.9423361008921,"totalDayCount":58}``
 
 
-Note:  
-- startDate and endDate format MM-DD-YYYY  
-- lendingProvoders are comma separated  
+Note:   
+- "startDate" and "endDate" format: MM-DD-YYYY  
+- lendingProvoders are comma separated. Available proivders can be found in: Pools.js  
 
-TODO:  
+TODO:   
 - host API  
 - integrate API with React app  
 
