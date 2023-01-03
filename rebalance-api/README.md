@@ -4,7 +4,7 @@ This can be called from the front end to simulate the total interest paid by use
 
 The API is build using the Hapi framework: https://hapi.dev/
 
-## Usage guide
+## Usage guide to host and test the API locally
 
 From RebalanceAPI directory, run:  
 ``node rebalanceAPI.js``
@@ -23,7 +23,17 @@ Note:
 - "startDate" and "endDate" format: MM-DD-YYYY  
 - lendingProvoders are comma separated. Available proivders can be found in: Pools.js  
 
+## Hosting the API on Google Cloud
+
+We build a container image from the API. Goodle Cloud Run allows us to run containers directly on top its infrastructure. Its scalability and security are key features.
+
+To build the container and deploy it on Cloud Run, run this command from the source code directory:  
+``gcloud run deploy``
+
+In case of problems, this quickstart is a good guide: https://cloud.google.com/run/docs/quickstarts/build-and-deploy/deploy-nodejs-service
+
+To debug deployment issues, build and run the container locally. Here is a good guide: https://docs.docker.com/get-started/02_our_app/
+
 TODO:   
-- host API  
 - integrate API with React app  
 
