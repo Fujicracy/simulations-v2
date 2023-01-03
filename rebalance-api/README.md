@@ -6,13 +6,13 @@ The API is build using the Hapi framework: https://hapi.dev/
 
 ## Usage guide
 
-From RebalanceAPI directory, run:
+From RebalanceAPI directory, run:  
 ``node rebalanceAPI.js``
 
-This will return:
+This will return:  
 ``Server running on http://localhost:3000``
 
-Then you can call the API from localhost, port 3000. Example query:
+Then you can call the API from localhost, port 3000. Example query:  
 ``http://localhost:3000/calculateTotalInterest/startDate=09-19-2022&endDate=11-17-2022&collateralAsset=ETH&borrowedAsset=USDC&lendingProviders=aavev2,compound,euler``  
 
 This will return:  
