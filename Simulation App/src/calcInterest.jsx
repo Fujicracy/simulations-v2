@@ -7,7 +7,8 @@ export class supplyInterestRates {
     this.borrowedAsset = borrowedAsset;
     this.lendingProviders = lendingProviders;
     this.firstCommonDate;
-    this.pools = pools;
+    this.chain = 'Mainnet',
+      this.pools = pools;
   }
 
   formatApiRequest(data) {
@@ -85,7 +86,7 @@ export class supplyInterestRates {
     let allProviderData = {};
     for (let i = 0; i < this.lendingProviders.length; i++) {
       let provider = this.lendingProviders[i];
-      let providerData = await this.getHistoricData(this.pools[this.borrowedAsset][provider]);
+      let providerData = await this.getHistoricData(this.pools[this.chain][this.borrowedAsset][provider]);
 
       allProviderData[provider] = providerData;
 
@@ -258,10 +259,11 @@ function totalInterestPaid(historicRates, debtAmount, startDate, endDate) {
 }
 
 export async function simRebalance(startDateInput, endDateInput, borrowingVault, ir) {
+  // console.log(Object.keys(ir.pools));
   const allProviderData = await ir.getAllProviderData();
   const borrowAPYs = await ir.formatProviderData(allProviderData);
-  console.log('First common date all providers have API data:', ir.firstCommonDate);
-  console.log('All data:', borrowAPYs);
+  // console.log('First common date all providers have API data:', ir.firstCommonDate);
+  // console.log('All data:', borrowAPYs);
   Object.freeze(borrowAPYs);
 
   const startDate = new Date(startDateInput);
@@ -331,6 +333,12 @@ export async function simRebalance(startDateInput, endDateInput, borrowingVault,
 
   const result = totalInterestPaid(apyHistory, borrowingVault.debtAmount, startDate, endDate);
 
-  console.log('The borrowing vault rebalanced', borrowingVault.debtAmount,
-    borrowingVault.debtAsset, 'for', result["totalDayCount"], 'days. Total interest paid ', result["totalInterestPaid"], borrowingVault.debtAsset);
+  const displayResult = `The borrowing vault rebalanced ${borrowingVault.debtAmount} ${borrowingVault.debtAsset} for ${result["totalDayCount"]} days. Total interest paid ${result["totalInterestPaid"]} ${borrowingVault.debtAsset}`;
+
+  // console.log('The borrowing vault rebalanced', borrowingVault.debtAmount,
+  //   borrowingVault.debtAsset, 'for', result["totalDayCount"], 'days. Total interest paid ', result["totalInterestPaid"], borrowingVault.debtAsset);
+
+  console.log(displayResult);
+
+  return displayResult;
 }
