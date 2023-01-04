@@ -71,3 +71,10 @@ We use DefiLlama's API to get historical data of their Yields Borrow dashboard: 
 
 Here are the general API docs: https://defillama.com/docs/api
 
+## Rebalance simulation API
+
+The API simulates the total interest paid by a user, over a period from startDate to endDate, given collateral and debt assets, and selected lending providers.
+
+See instructions in directory to host on Google Cloud or locally to modify.
+
+
