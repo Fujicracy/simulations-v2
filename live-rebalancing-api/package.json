@@ -1,0 +1,15 @@
+{
+  "name": "live-rebalancing-api",
+  "version": "1.0.0",
+  "description": "Live tracking to of provider APYs to decide when and how much to rebalance form one provider to another",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ben Dumoulin",
+  "license": "ISC",
+  "dependencies": {
+    "@hapi/hapi": "^21.1.0",
+    "axios": "^1.2.2"
+  }
+}
