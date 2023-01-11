@@ -1,7 +1,8 @@
 'use strict';
 
 const Hapi = require('@hapi/hapi');
-const supplyProviderRates = require('./supplyProviderRates.js');
+const liveProviderRates = require('./liveProviderRates.js');
+const readVaultContract = require('./readVaultContract.js');
 
 const init = async () => {
     const server = Hapi.server({
@@ -17,7 +18,8 @@ const init = async () => {
             const tresholdInterestRate = request.params.tresholdInterestRate;
             const vaultAddress = request.params.vaultAddress;
 
-            const spr = new supplyProviderRates();
+            const providerRates = new liveProviderRates();
+            const vaultContract = new readVaultContract();
 
             const rebalanceNeeded = false;
             const rebalanceAmount = {};

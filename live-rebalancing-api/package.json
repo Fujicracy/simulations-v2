@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "@hapi/hapi": "^21.1.0",
-    "axios": "^1.2.2"
+    "axios": "^1.2.2",
+    "ethers": "^5.7.2"
   }
 }
