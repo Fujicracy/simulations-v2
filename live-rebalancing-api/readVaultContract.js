@@ -15,7 +15,7 @@ module.exports = class readVaultContract {
         
         const network = 'goerli';
         const provider = ethers.getDefaultProvider(network, {
-            etherscan: 'YOUR_API_KEY' // 
+            etherscan: 'YOUR_API_KEY' // https://docs.ethers.io/api-keys/
         });
 
         const vaultContract = new ethers.Contract(vaultAddress, vaultAbi, provider);
@@ -29,13 +29,11 @@ module.exports = class readVaultContract {
         const debtAsset = await vaultContract.debtAsset();
         // const totalDebtAsset = await vaultContract.totalDebt();
 
-        // Array of addreses of the providers in which the asset is deposited as collateral
         const activeProviderAddresses = await vaultContract.getProviders();
 
         console.log("collateralAsset: ", collateralAsset);
         console.log("debtAsset: ", debtAsset);
-
-        // define empty dictionary
+        
         let providerAddressesDict = {};
 
         for (let i = 0; i < activeProviderAddresses.length; i++) {
@@ -45,13 +43,20 @@ module.exports = class readVaultContract {
 
             let providerAbi = await this.downloadVaultAbi(activeProviderAddresses[i]);
             let providerContract = new ethers.Contract(activeProviderAddresses[i], providerAbi, provider);
+
             providerAddressesDict[activeProviderAddresses[i]] = {};
 
-            // TODO: find right arguments touse for getBorrowBalance and getDepositBalance
-            // providerAddressesDict[activeProviderAddresses[i]]['borrowBalance'] = await providerContract.getBorrowBalance('user', 'vault');
-            providerAddressesDict[activeProviderAddresses[i]]['borrowBalance'] = 1/activeProviderAddresses.length; // just placeholder value
-            // providerAddressesDict[activeProviderAddresses[i]]['depositBalance'] = await providerContract.getDepositBalance('user', 'vault');
-            providerAddressesDict[activeProviderAddresses[i]]['depositBalance'] = 1/activeProviderAddresses.length; // just placeholder value
+            let borrowBalance = await providerContract.getBorrowBalance(vaultAddress, vaultAddress);
+            let convertBorrowBalance = borrowBalance.toBigInt() / BigInt(1e18);
+            providerAddressesDict[activeProviderAddresses[i]]['borrowBalance'] = parseInt(convertBorrowBalance.toString(), 10);
+            
+            // TODO: delete limit:
+            console.log('waiting 5 seconds for API limit');
+            await new Promise(r => setTimeout(r, 5000));
+            
+            let depositBalance = await providerContract.getDepositBalance(vaultAddress, vaultAddress);
+            let convertDepositBalance = depositBalance.toBigInt() / BigInt(1e18);
+            providerAddressesDict[activeProviderAddresses[i]]['depositBalance'] = parseInt(convertDepositBalance.toString(), 10);
         }
 
         return {
