@@ -1,24 +1,24 @@
 const axios = require('axios');
 var ethers = require('ethers');
 
-module.exports = class readVaultContract {
-    async downloadVaultAbi(vaultAddress) {
-        const abiUrl = `https://api-goerli.etherscan.io/api?module=contract&action=getabi&address=${vaultAddress}`;
-        const rawAbi = await axios.get(abiUrl);
-        const vaultAbi = JSON.parse(rawAbi.data.result);
+const abiVault = require('./abis/abiVault.json');
+const abiProvider = require('./abis/abiProvider.json');
 
-        return vaultAbi;
+module.exports = class readVaultContract {
+    constructor() {
+        this.abiVault = abiVault;
+        this.abiProvider = abiProvider;
     }
 
-    async getVaultAssets(vaultAddress) {
-        const vaultAbi = await this.downloadVaultAbi(vaultAddress);
-        
+    async getVaultInfo(vaultAddress) {
         const network = 'goerli';
         const provider = ethers.getDefaultProvider(network, {
             etherscan: process.env.ETHERSCAN_API_KEY // https://docs.ethers.io/api-keys/
+            // infura
+            // alchemy
         });
 
-        const vaultContract = new ethers.Contract(vaultAddress, vaultAbi, provider);
+        const vaultContract = new ethers.Contract(vaultAddress, this.abiVault, provider);
 
         // The asset of the Borrowing vault
         const collateralAsset = await vaultContract.asset();
@@ -41,8 +41,7 @@ module.exports = class readVaultContract {
             console.log('waiting 5 seconds for API limit');
             await new Promise(r => setTimeout(r, 5000));
 
-            let providerAbi = await this.downloadVaultAbi(activeProviderAddresses[i]);
-            let providerContract = new ethers.Contract(activeProviderAddresses[i], providerAbi, provider);
+            let providerContract = new ethers.Contract(activeProviderAddresses[i], this.abiProvider, provider);
 
             providerAddressesDict[activeProviderAddresses[i]] = {};
 
