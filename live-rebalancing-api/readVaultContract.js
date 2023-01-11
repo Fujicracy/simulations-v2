@@ -15,7 +15,7 @@ module.exports = class readVaultContract {
         
         const network = 'goerli';
         const provider = ethers.getDefaultProvider(network, {
-            etherscan: 'YOUR_API_KEY' // https://docs.ethers.io/api-keys/
+            etherscan: process.env.ETHERSCAN_API_KEY // https://docs.ethers.io/api-keys/
         });
 
         const vaultContract = new ethers.Contract(vaultAddress, vaultAbi, provider);
