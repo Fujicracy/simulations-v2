@@ -5,29 +5,41 @@ const abiVault = require('./abis/abiVault.json');
 const abiProvider = require('./abis/abiProvider.json');
 
 module.exports = class readVaultContract {
-    constructor() {
+    /* 
+        Available chains depends on API choice in getDefaultProvider()
+        Alchamy chain options: homestead, goerli, matic. maticmum, arbitrum, 
+                                arbitrum-goerli, optimism and optimism-goerli 
+    */
+    constructor(chain) {
+        this.chain = chain;
         this.abiVault = abiVault;
         this.abiProvider = abiProvider;
     }
 
+    async convertBigNumber(bigInt) {
+        let convertBigInt = bigInt.toBigInt() / BigInt(1e18);
+        return parseInt(convertBigInt.toString(), 10);
+    }
+
     async getVaultInfo(vaultAddress) {
-        const network = 'goerli';
-        const provider = ethers.getDefaultProvider(network, {
-            etherscan: process.env.ETHERSCAN_API_KEY // https://docs.ethers.io/api-keys/
-            // infura
-            // alchemy
+        const provider = ethers.getDefaultProvider(this.chain, {
+            // https://docs.ethers.io/api-keys/
+            infura: process.env.INFURA_API_KEY,
+            alchemy: process.env.ALCHEMY_API_KEY,
+            etherscan: process.env.ETHERSCAN_API_KEY, 
         });
 
         const vaultContract = new ethers.Contract(vaultAddress, this.abiVault, provider);
 
         // The asset of the Borrowing vault
         const collateralAsset = await vaultContract.asset();
-        // const totalCollateralAsset = await vaultContract.totalAssets();
-
+        const totalCollateralAssetBigNumber = await vaultContract.totalAssets();
+        const totalCollateralAsset = await this.convertBigNumber(totalCollateralAssetBigNumber);
 
         // The debt asset of the borrowing vault
         const debtAsset = await vaultContract.debtAsset();
-        // const totalDebtAsset = await vaultContract.totalDebt();
+        const totalDebtAssetBigNumber = await vaultContract.totalDebt();
+        const totalDebtAsset = await this.convertBigNumber(totalDebtAssetBigNumber);
 
         const activeProviderAddresses = await vaultContract.getProviders();
 
@@ -37,33 +49,24 @@ module.exports = class readVaultContract {
         let providerAddressesDict = {};
 
         for (let i = 0; i < activeProviderAddresses.length; i++) {
-            // TODO: delete limit:
-            console.log('waiting 5 seconds for API limit');
-            await new Promise(r => setTimeout(r, 5000));
+            let providerAddress = activeProviderAddresses[i];
+            let providerContract = new ethers.Contract(providerAddress, this.abiProvider, provider);
 
-            let providerContract = new ethers.Contract(activeProviderAddresses[i], this.abiProvider, provider);
-
-            providerAddressesDict[activeProviderAddresses[i]] = {};
+            providerAddressesDict[providerAddress] = {};
 
             let borrowBalance = await providerContract.getBorrowBalance(vaultAddress, vaultAddress);
-            let convertBorrowBalance = borrowBalance.toBigInt() / BigInt(1e18);
-            providerAddressesDict[activeProviderAddresses[i]]['borrowBalance'] = parseInt(convertBorrowBalance.toString(), 10);
-            
-            // TODO: delete limit:
-            console.log('waiting 5 seconds for API limit');
-            await new Promise(r => setTimeout(r, 5000));
+            providerAddressesDict[providerAddress]['borrowBalance'] = await this.convertBigNumber(borrowBalance);
             
             let depositBalance = await providerContract.getDepositBalance(vaultAddress, vaultAddress);
-            let convertDepositBalance = depositBalance.toBigInt() / BigInt(1e18);
-            providerAddressesDict[activeProviderAddresses[i]]['depositBalance'] = parseInt(convertDepositBalance.toString(), 10);
+            providerAddressesDict[providerAddress]['depositBalance'] = await this.convertBigNumber(depositBalance);
         }
 
         return {
-          'collateralAsset: ': collateralAsset,
-        //   'totalCollateralAsset: ': totalCollateralAsset,
-          'debtAsset: ': debtAsset,
-        //   'totalDebtAsset: ': totalDebtAsset,
-          'activeProviderAddressesDict: ': providerAddressesDict
+          'collateralAsset': collateralAsset,
+          'totalCollateralAsset': totalCollateralAsset,
+          'debtAsset': debtAsset,
+          'totalDebtAsset': totalDebtAsset,
+          'activeProviderAddressesDict': providerAddressesDict
         };  
       }
 
