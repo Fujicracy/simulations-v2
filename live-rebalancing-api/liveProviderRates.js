@@ -31,7 +31,7 @@ module.exports = class liveProviderRates {
             "predictedClass": "Stable/Up",
             "predictedProbability": 60,
             "binnedConfidence": 1
-          },
+        },
       */
       let url = 'https://yields.llama.fi/pools';
       let response = axios.get(url);
@@ -95,6 +95,7 @@ module.exports = class liveProviderRates {
       // link Defi Llama pool addresses to project names
       let formattedResponse = await this.formatLiveBorrowRates(response, chain, debtAsset);
 
+      // TODO: add conversion rate of debtAsset to USD
       return formattedResponse;
     }
 }
