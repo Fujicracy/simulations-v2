@@ -1,8 +1,7 @@
 'use strict';
 
 const Hapi = require('@hapi/hapi');
-const liveProviderRates = require('./liveProviderRates.js');
-const readVaultContract = require('./readVaultContract.js');
+const liveRebalance = require('./liveRebalance.js');
 
 const init = async () => {
     const server = Hapi.server({
@@ -15,21 +14,12 @@ const init = async () => {
         path: '/chain={chain}&tresholdInterestRate={tresholdInterestRate}&vaultAddress={vaultAddress}',
         handler: (request, h) => {
             const chain = request.params.chain;
+            // turn string tresholdInterestRate into int
             const tresholdInterestRate = request.params.tresholdInterestRate;
             const vaultAddress = request.params.vaultAddress;
 
-            const providerRates = new liveProviderRates();
-            const vaultContract = new readVaultContract();
-
-            const rebalanceNeeded = false;
-            const rebalanceAmount = {};
-
-            // TODO: apply life rebalancing logic
-
-            const result = {
-                'rebalanceNeeded': rebalanceNeeded,
-                'rebalanceAmount': rebalanceAmount,
-            };
+            const rebalancer = new liveRebalance(chain, tresholdInterestRate, vaultAddress);
+            const result = rebalancer.rebalance();
 
             return result;
         }
