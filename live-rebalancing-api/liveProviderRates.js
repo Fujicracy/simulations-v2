@@ -1,7 +1,7 @@
 const axios = require('axios');
 var ethers = require('ethers');
 
-const pools = require('./Pools.js');
+const pools = require('./pools.js');
 
 module.exports = class liveProviderRates {
     constructor() {
