@@ -14,7 +14,6 @@ const init = async () => {
         path: '/chain={chain}&tresholdInterestRate={tresholdInterestRate}&vaultAddress={vaultAddress}',
         handler: (request, h) => {
             const chain = request.params.chain;
-            // turn string tresholdInterestRate into int
             const tresholdInterestRate = request.params.tresholdInterestRate;
             const vaultAddress = request.params.vaultAddress;
 
